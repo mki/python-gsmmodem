@@ -146,11 +146,12 @@ class GsmModem(SerialComms):
     CDSI_REGEX = re.compile('\+CDSI:\s*"([^"]+)",(\d+)$')
     CDS_REGEX  = re.compile('\+CDS:\s*([0-9]+)"$')
 
-    def __init__(self, port, baudrate=115200, incomingCallCallbackFunc=None, smsReceivedCallbackFunc=None, smsStatusReportCallback=None, requestDelivery=True, AT_CNMI="", *a, **kw):
+    def __init__(self, port, baudrate=115200, incomingCallCallbackFunc=None, smsReceivedCallbackFunc=None, smsStatusReportCallback=None, modemStartCallback=None, requestDelivery=True, AT_CNMI="", *a, **kw):
         super(GsmModem, self).__init__(port, baudrate, notifyCallbackFunc=self._handleModemNotification, *a, **kw)
         self.incomingCallCallback = incomingCallCallbackFunc or self._placeholderCallback
         self.smsReceivedCallback = smsReceivedCallbackFunc or self._placeholderCallback
         self.smsStatusReportCallback = smsStatusReportCallback or self._placeholderCallback
+        self.modemStartCallback = modemStartCallback or self._placeholderCallback
         self.requestDelivery = requestDelivery
         self.AT_CNMI = AT_CNMI or "2,1,0,2"
         # Flag indicating whether caller ID for incoming call notification has been set up
@@ -1214,6 +1215,10 @@ class GsmModem(SerialComms):
                 # New incoming DTMF
                 self._handleIncomingDTMF(line)
                 return
+            elif line.startswith('^SYSSTART'):
+                # Modem started
+                self._handleModemStart(line)
+                return
             else:
                 # Check for call status updates
                 for updateRegex, handlerFunc in self._callStatusUpdates:
@@ -1357,6 +1362,15 @@ class GsmModem(SerialComms):
                     self.log.error('error in smsReceivedCallback', exc_info=True)
                 else:
                     self.deleteStoredSms(msgIndex)
+
+    def _handleModemStart(self, notificationLine):
+        """ Handler for modem start """
+        self.log.debug('Modem started')
+        if self.modemStartCallback is not None:
+            try:
+                self.modemStartCallback()
+            except Exception:
+                self.log.error('error in handleModemStart', exc_info=True)
 
     def _handleSmsStatusReport(self, notificationLine):
         """ Handler for SMS status reports """
