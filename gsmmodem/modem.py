@@ -1159,12 +1159,14 @@ class GsmModem(SerialComms):
                         delMessages.add(msgIndex)
                         readPdu = False
         if delete:
-            if status == Sms.STATUS_ALL:
-                # Delete all messages
-                self.deleteMultipleStoredSms()
-            else:
-                for msgIndex in delMessages:
-                    self.deleteStoredSms(msgIndex)
+            # if status == Sms.STATUS_ALL:
+            #     # Delete all messages
+            #     self.deleteMultipleStoredSms()
+            # else:
+
+            # force to delete messages by their index to consistent behaviour between different types of modems
+            for msgIndex in delMessages:
+                self.deleteStoredSms(msgIndex)
         return messages
 
     def _handleModemNotification(self, lines):
@@ -1484,7 +1486,14 @@ class GsmModem(SerialComms):
         :raise CommandError: if unable to delete the stored message
         """
         self._setSmsMemory(readDelete=memory)
-        self.write('AT+CMGD={0},0'.format(index))
+        # dirty fix to handle some modems which receive only one parameter on CMGD command
+        try:
+            self.write('AT+CMGD={0}'.format(index))
+        except CmsError as e:
+            if '500' in str(e):
+                self.write('AT+CMGD={0},0'.format(index))
+            else:
+                raise e
         # TODO: make a check how many params are supported by the modem and use the right command. For example, Siemens MC35, TC35 take only one parameter.
         #self.write('AT+CMGD={0}'.format(index))
 
